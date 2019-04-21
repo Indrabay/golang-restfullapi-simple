@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+    "strings"
 
 	"./config"
 	"./controllers"
@@ -28,7 +29,7 @@ func main() {
 	router.POST("/person", auth, inDB.CreatePerson)
 	router.PUT("/person", auth, inDB.UpdatePerson)
 	router.DELETE("/person/:id", auth, inDB.DeletePerson)
-	router.Run(":3000")
+	router.Run(":4000")
 }
 
 func loginHandler(c *gin.Context) {
@@ -68,23 +69,35 @@ func loginHandler(c *gin.Context) {
 
 func auth(c *gin.Context) {
 	tokenString := c.Request.Header.Get("Authorization")
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if jwt.GetSigningMethod("HS256") != token.Method {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
+    bearerToken := strings.Split(tokenString, " ")
+    if len(bearerToken) == 2 {
+        token, err := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
+            if jwt.GetSigningMethod("HS256") != token.Method {
+                return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+            }
 
-		return []byte("secret"), nil
-	})
-
-	// if token.Valid && err == nil {
-	if token != nil && err == nil {
-		fmt.Println("token verified")
-	} else {
-		result := gin.H{
+            return []byte("secret"), nil
+        })
+        // if token.Valid && err == nil {
+        if token != nil && err == nil {
+            fmt.Println("token verified")
+        } else {
+            result := gin.H{
+                "message": "not authorized",
+                "error":   err.Error(),
+            }
+            c.JSON(http.StatusUnauthorized, result)
+            c.Abort()
+        }
+    } else {
+        result := gin.H{
 			"message": "not authorized",
-			"error":   err.Error(),
+			"error":  "An authorization header is required",
 		}
-		c.JSON(http.StatusUnauthorized, result)
-		c.Abort()
-	}
+
+        c.JSON(http.StatusUnauthorized, result)
+    }
+
 }
+
+
